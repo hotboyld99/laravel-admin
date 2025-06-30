@@ -1,28 +1,26 @@
 {
-    "name": "encore/laravel-admin",
+    "name": "hotboyld99/laravel-admin",
     "description": "laravel admin",
     "type": "library",
-    "keywords": ["laravel", "admin", "grid", "form"],
-    "homepage": "https://github.com/z-song/laravel-admin",
+    "keywords": [
+        "laravel",
+        "admin",
+        "grid",
+        "form"
+    ],
+    "homepage": "https://github.com/hotboyld99/laravel-admin",
     "license": "MIT",
     "authors": [
         {
-            "name": "zsong",
-            "email": "zosong@126.com"
+            "name": "hotboyld99",
+            "email": "hotboyld99@gmail.com"
         }
     ],
     "require": {
-        "php": ">=7.0.0",
-        "symfony/dom-crawler": "~3.1|~4.0|~5.0",
-        "laravel/framework": ">=5.5",
-        "doctrine/dbal": "2.*|3.*"
-    },
-    "require-dev": {
-        "laravel/laravel": ">=5.5",
-        "fzaninotto/faker": "~1.4",
-        "intervention/image": "~2.3",
-        "laravel/browser-kit-testing": "^6.0",
-        "spatie/phpunit-watcher": "^1.22.0"
+        "php": ">=8.2",
+        "laravel/framework": ">=11",
+        "symfony/dom-crawler": "^6.4",
+        "doctrine/dbal": "^4.2"
     },
     "autoload": {
         "psr-4": {

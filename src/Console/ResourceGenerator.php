@@ -2,6 +2,7 @@
 
 namespace Encore\Admin\Console;
 
+use Doctrine\DBAL\DriverManager;
 use Illuminate\Database\Eloquent\Model;
 
 class ResourceGenerator
@@ -25,8 +26,14 @@ class ResourceGenerator
      */
     private $doctrineTypeMapping = [
         'string' => [
-            'enum', 'geometry', 'geometrycollection', 'linestring',
-            'polygon', 'multilinestring', 'multipoint', 'multipolygon',
+            'enum',
+            'geometry',
+            'geometrycollection',
+            'linestring',
+            'polygon',
+            'multilinestring',
+            'multipoint',
+            'multipolygon',
             'point',
         ],
     ];
@@ -87,20 +94,17 @@ class ResourceGenerator
             if (in_array($name, $reservedColumns)) {
                 continue;
             }
-            $type = $column->getType()->getName();
+            $type = $column->getType();
             $default = $column->getDefault();
 
             $defaultValue = '';
 
             // set column fieldType and defaultValue
-            switch ($type) {
-                case 'boolean':
-                case 'bool':
+            switch (get_class($type)) {
+                case \Doctrine\DBAL\Types\BooleanType::class:
                     $fieldType = 'switch';
                     break;
-                case 'json':
-                case 'array':
-                case 'object':
+                case \Doctrine\DBAL\Types\JsonType::class:
                     $fieldType = 'text';
                     break;
                 case 'string':
@@ -113,31 +117,29 @@ class ResourceGenerator
                     }
                     $defaultValue = "'{$default}'";
                     break;
-                case 'integer':
-                case 'bigint':
-                case 'smallint':
-                case 'timestamp':
+                case \Doctrine\DBAL\Types\IntegerType::class:
+                case \Doctrine\DBAL\Types\BigIntType::class:
+                case \Doctrine\DBAL\Types\SmallIntType::class:
                     $fieldType = 'number';
                     break;
-                case 'decimal':
-                case 'float':
-                case 'real':
+                case \Doctrine\DBAL\Types\FloatType::class:
+                case \Doctrine\DBAL\Types\DecimalType::class:
                     $fieldType = 'decimal';
                     break;
-                case 'datetime':
+                case \Doctrine\DBAL\Types\DateTimeType::class:
                     $fieldType = 'datetime';
                     $defaultValue = "date('Y-m-d H:i:s')";
                     break;
-                case 'date':
+                case \Doctrine\DBAL\Types\DateType::class:
                     $fieldType = 'date';
                     $defaultValue = "date('Y-m-d')";
                     break;
-                case 'time':
+                case \Doctrine\DBAL\Types\TimeType::class:
                     $fieldType = 'time';
                     $defaultValue = "date('H:i:s')";
                     break;
-                case 'text':
-                case 'blob':
+                case \Doctrine\DBAL\Types\TextType::class:
+                case \Doctrine\DBAL\Types\BlobType::class:
                     $fieldType = 'textarea';
                     break;
                 default:
@@ -211,33 +213,76 @@ class ResourceGenerator
      *
      * @return \Doctrine\DBAL\Schema\Column[]
      */
-    protected function getTableColumns()
+    // protected function getTableColumns()
+    // {
+    //     if (!$this->model->getConnection()->isDoctrineAvailable()) {
+    //         throw new \Exception(
+    //             'You need to require doctrine/dbal: ~2.3 in your own composer.json to get database columns. '
+    //         );
+    //     }
+
+    //     $table = $this->model->getConnection()->getTablePrefix() . $this->model->getTable();
+    //     /** @var \Doctrine\DBAL\Schema\MySqlSchemaManager $schema */
+    //     $schema = $this->model->getConnection()->getDoctrineSchemaManager($table);
+
+    //     // custom mapping the types that doctrine/dbal does not support
+    //     $databasePlatform = $schema->getDatabasePlatform();
+
+    //     foreach ($this->doctrineTypeMapping as $doctrineType => $dbTypes) {
+    //         foreach ($dbTypes as $dbType) {
+    //             $databasePlatform->registerDoctrineTypeMapping($dbType, $doctrineType);
+    //         }
+    //     }
+
+    //     $database = null;
+    //     if (strpos($table, '.')) {
+    //         list($database, $table) = explode('.', $table);
+    //     }
+
+    //     return $schema->listTableColumns($table, $database);
+    // }
+
+    protected function getTableColumns(): array
     {
-        if (!$this->model->getConnection()->isDoctrineAvailable()) {
+        if (!class_exists(\Doctrine\DBAL\DriverManager::class)) {
             throw new \Exception(
-                'You need to require doctrine/dbal: ~2.3 in your own composer.json to get database columns. '
+                'You need to require doctrine/dbal in your composer.json to get database columns.'
             );
         }
 
-        $table = $this->model->getConnection()->getTablePrefix().$this->model->getTable();
-        /** @var \Doctrine\DBAL\Schema\MySqlSchemaManager $schema */
-        $schema = $this->model->getConnection()->getDoctrineSchemaManager($table);
+        $connectionConfig = config('database.connections.' . $this->model->getConnectionName());
 
-        // custom mapping the types that doctrine/dbal does not support
-        $databasePlatform = $schema->getDatabasePlatform();
+        $connection = DriverManager::getConnection([
+            'dbname'    => $connectionConfig['database'],
+            'user'      => $connectionConfig['username'],
+            'password'  => $connectionConfig['password'],
+            'host'      => $connectionConfig['host'],
+            'driver'    => 'pdo_mysql',
+            'port'      => $connectionConfig['port'] ?? 3306,
+            'charset'   => $connectionConfig['charset'] ?? 'utf8mb4',
+        ]);
 
+        $schemaManager = $connection->createSchemaManager(); // returns AbstractSchemaManager
+        $platform = $connection->getDatabasePlatform();
+
+        // Optional: Custom type mapping
         foreach ($this->doctrineTypeMapping as $doctrineType => $dbTypes) {
             foreach ($dbTypes as $dbType) {
-                $databasePlatform->registerDoctrineTypeMapping($dbType, $doctrineType);
+                $platform->registerDoctrineTypeMapping($dbType, $doctrineType);
             }
         }
 
+        $table = $this->model->getConnection()->getTablePrefix() . $this->model->getTable();
         $database = null;
+
         if (strpos($table, '.')) {
-            list($database, $table) = explode('.', $table);
+            [$database, $table] = explode('.', $table, 2);
         }
 
-        return $schema->listTableColumns($table, $database);
+        /** @var Column[] $columns */
+        $columns = $schemaManager->listTableColumns($table, $database);
+
+        return $columns;
     }
 
     /**
