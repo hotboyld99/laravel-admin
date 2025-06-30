@@ -39,6 +39,12 @@
             "tests/TestCase.php"
         ]
     },
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/hotboyld99/laravel-admin"
+        }
+    ],
     "scripts": {
         "test": "./vendor/bin/phpunit"
     },
